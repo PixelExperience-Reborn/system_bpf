@@ -1,0 +1,20 @@
+name: AOSP17 system BPF historical source audit
+
+on:
+  push:
+    branches:
+      - audit/a17-mondrian-system-bpf-20261104
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  historical-bpf-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare historical BPF loader and boot sequencing invariants
+        run: python3 tools/verify_a17_system_bpf_legacy.py
