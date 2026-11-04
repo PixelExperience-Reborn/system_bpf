@@ -1,0 +1,77 @@
+name: AOSP17 upstream BPF Rust loader and bpfprogs exact-tree integrity
+
+on:
+  push:
+    branches:
+      - audit/a17-mondrian-system-bpf-20261104
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upstream-tags:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch official AOSP17 r1 BPF and BPF programs tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/official"
+          for project in bpf bpfprogs; do
+            git -c http.version=HTTP/1.1 clone \
+              --depth 1 --single-branch \
+              --branch android-17.0.0_r1 \
+              "https://android.googlesource.com/platform/system/$project" \
+              "$RUNNER_TEMP/official/$project"
+          done
+          test "$(git -C "$RUNNER_TEMP/official/bpf" rev-parse 'HEAD^{tree}')" = \
+            "a02aa20523909870e9c3874931604ea061f2badb"
+          test "$(git -C "$RUNNER_TEMP/official/bpfprogs" rev-parse 'HEAD^{tree}')" = \
+            "238924255acb29e72d0204ca66d4ea0792b84abb"
+          echo "PASS: exact official tagged Android17 r1 Git tree for both projects"
+      - name: Confirm Rust/Soong modules, object paths and safety metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "official"
+          bpf = root / "bpf"
+          progs = root / "bpfprogs"
+          base_bp = (bpf / "Android.bp").read_text()
+          loaderbp = (bpf / "loader/Android.bp").read_text()
+          loader = (bpf / "loader/bpfloader.rs").read_text()
+          prog_bp = (bpf / "progs/Android.bp").read_text()
+          extra_bp = (progs / "Android.bp").read_text()
+          for expected in ('name: "android_bpf_defs"', 'name: "bpf_prog_platform_headers"',
+                           'name: "bpf_cc_defaults"'):
+              assert expected in base_bp, expected
+          for expected in ('rust_binary {', 'name: "bpfloader"', '"bpfloader.rs"',
+                           '"libbpf_android_bindgen"', '"libandroid_bpfprogs_flags"',
+                           '"liblibbpf_rs"', '"liblibbpf_sys"',
+                           '"kernelWakelockDuration.bpf"', '"timeInState.bpf"',
+                           '"dmabufIter.bpf"', '"bpfLockContention.bpf"'):
+              assert expected in loaderbp, expected
+          for expected in ('struct BpfFileDesc', 'critical: bool', 'skip_on_user: bool',
+                           'allow_missing: bool', 'min_kver', 'max_kver',
+                           '"/system/etc/bpf/fuseMedia.bpf"',
+                           '"/system/etc/bpf/cputimeinstate/timeInState.bpf"'):
+              assert expected in loader, expected
+          assert not (bpf / "bpfloader/BpfLoader.cpp").exists()
+          assert not (bpf / "libbpf_android/Android.bp").exists()
+          assert 'name: "bpfRingbufProg.bpf"' in prog_bp
+          for expected in ('name: "timeInState.bpf"', 'name: "fuseMedia.bpf"',
+                           'name: "dmabufIter.bpf"', 'name: "android_bpfprogs_flags"',
+                           'name: "libandroid_bpfprogs_flags"'):
+              assert expected in extra_bp, expected
+          for filename in ("timeInState.c", "fuseMedia.c", "dmabufIter.c", "progs.aconfig"):
+              assert (progs / filename).is_file(), filename
+          print("PASS: official AOSP17 loader/Soong and separate eBPF programs verified")
+          print("NOT TESTED: manifest integration, Rust compilation, eBPF verifier, kernel or mondrian boot")
+          PY
