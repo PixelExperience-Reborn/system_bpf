@@ -45,7 +45,8 @@ Before a device bring-up:
 - [x] Old PE source SHA, Android14 loader/Soong and historical 4.9 patch reviewed.
 - [x] Official AOSP17 source trees and Rust loader + separate bpfprogs design identified.
 - [x] Host-only archive consistency test added.
-- [ ] Official AOSP17 *joint* exact-tree source sync CI for `system/bpf` and `system/bpfprogs` (created in manifest, result to be checked).
+- [x] Independent official AOSP17 r1 **tagged source Git trees** fetched and pinned for `system/bpf` and `system/bpfprogs`; Rust loader, Soong and object-file markers verified in [CI PASS #41791055533](https://github.com/PixelExperience-Reborn/system_bpf/actions/runs/41791055533). This is **not** the manifest's repo-sync test or an Android17 build.
+- [ ] Staged manifest **joint repo sync** for `system/bpf` and `system/bpfprogs`; new manifest workflow exists but its run is not confirmed.
 - [ ] Full AOSP17 Rust/Soong and eBPF compiler verification.
 - [ ] Actual kernel 5.10 config, BTF/verifier tracepoints and SELinux labels validated.
 - [ ] Physical mondrian boot, `bpfloader`/netd/Connectivity behavior, CTS/VTS and OTA tests.
